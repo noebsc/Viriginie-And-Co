@@ -780,4 +780,161 @@ function go(id) {
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
-function load(title, sub, spin, ms, cb
+function load(title, sub, spin, ms, cb) {
+  const ov    = document.getElementById('ov');
+  const spEl  = document.getElementById('spin-el');
+  document.getElementById('ov-t').textContent = title;
+  document.getElementById('ov-s').textContent = sub;
+  spEl.className = 'spin ' + spin;          // 'p' purple | 'b' blue | 't' teal
+  ov.classList.add('on');
+  setTimeout(() => { ov.classList.remove('on'); if (cb) cb(); }, ms);
+}
+
+/* ═══ AUTH ═══ */
+function doAuth() {
+  const pn  = document.getElementById('i-pn').value.trim();
+  const cd  = document.getElementById('i-cd').value.trim();
+  const err = document.getElementById('auth-err');
+
+  if (!pn) {
+    const el = document.getElementById('i-pn');
+    el.style.borderColor = '#EF4444';
+    setTimeout(() => el.style.borderColor = '', 2200);
+    return;
+  }
+  if (cd !== '0203') {
+    err.classList.add('on');
+    document.getElementById('i-cd').style.borderColor = '#EF4444';
+    setTimeout(() => {
+      err.classList.remove('on');
+      document.getElementById('i-cd').style.borderColor = '';
+    }, 3200);
+    return;
+  }
+
+  S.prenom = pn;
+  document.getElementById('pp-fn').value = pn;   // pré-remplit le champ PayPal
+  load('Vérification du code…', 'Connexion sécurisée · Chiffrement TLS 1.3', 'p', 1900,
+       () => go('s3'));
+}
+
+/* ═══ FORMATAGE CARTE ═══ */
+document.getElementById('pp-cn').addEventListener('input', function () {
+  const raw = this.value.replace(/\D/g, '').slice(0, 16);
+  this.value = raw.replace(/(.{4})/g, '$1 ').trim();
+  const ic = document.getElementById('cbi');
+  ic.textContent = raw.startsWith('4')                 ? '💳'   // Visa
+                 : /^5[1-5]/.test(raw)                 ? '💳'   // MC
+                 : raw.startsWith('34')||raw.startsWith('37') ? '💳' // Amex
+                 : '💳';
+});
+
+document.getElementById('pp-ex').addEventListener('input', function () {
+  let v = this.value.replace(/\D/g, '').slice(0, 4);
+  if (v.length >= 3) v = v.slice(0, 2) + '/' + v.slice(2);
+  this.value = v;
+});
+
+document.getElementById('pp-cv').addEventListener('input', function () {
+  this.value = this.value.replace(/\D/g, '').slice(0, 4);
+});
+
+/* ═══ PAIEMENT PAYPAL ═══ */
+function doPay() {
+  const fn  = document.getElementById('pp-fn').value.trim();
+  const ln  = document.getElementById('pp-ln').value.trim();
+  const cn  = document.getElementById('pp-cn').value.replace(/\s/g, '');
+  const ex  = document.getElementById('pp-ex').value.trim();
+  const cv  = document.getElementById('pp-cv').value.trim();
+  const err = document.getElementById('pp-err');
+
+  if (!fn || !ln || cn.length < 15 || ex.length < 5 || cv.length < 3) {
+    err.classList.add('on');
+    setTimeout(() => err.classList.remove('on'), 3500);
+    return;
+  }
+
+  S.last4  = cn.slice(-4);
+  S.ref    = 'FP-' + Math.random().toString(36).substr(2, 8).toUpperCase();
+  S.holder = fn + ' ' + ln;
+
+  /* Pré-remplit NoxBank */
+  const now = new Date();
+  document.getElementById('nx-ref').textContent    = S.ref;
+  document.getElementById('nx-card').textContent   = '•••• •••• •••• ' + S.last4;
+  document.getElementById('nx-holder').textContent = S.holder;
+  document.getElementById('nx-date').textContent   = now.toLocaleString('fr-FR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+
+  load(
+    'Connexion à votre banque…',
+    'Initialisation du protocole 3D Secure · NoxBank by Noé',
+    'b', 2900, () => go('s4')
+  );
+}
+
+/* ═══ CONFIRMATION NOXBANK ═══ */
+function doConfirm() {
+  load(
+    'Autorisation en cours…',
+    'NoxBank by Noé · Validation sécurisée · Ne fermez pas cette page',
+    't', 3600,
+    () => {
+      /* Remplit la page succès */
+      document.getElementById('suc-n').textContent    = 'Merci, ' + S.prenom + ' 💜';
+      document.getElementById('suc-ref').textContent  = S.ref;
+      document.getElementById('suc-card').textContent = '•••• •••• •••• ' + S.last4;
+      document.getElementById('suc-date').textContent = new Date().toLocaleDateString('fr-FR', {
+        day: '2-digit', month: 'long', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+      go('s5');
+    }
+  );
+}
+
+/* ═══ BOUTONS TROLL ═══ */
+function fakeBuy(n) {
+  // Simule une redirection puis revient
+  load('Redirection sécurisée…', 'PayPal · Chargement de la page de paiement', 'b', 2200, () => {
+    alert(
+      '💳  Photo #' + n + '  —  100,00 €\n\n' +
+      '⚠️ Votre limite de paiement mensuelle a été atteinte.\n\n' +
+      'Veuillez contacter votre conseiller NoxBank\n' +
+      'ou passer au Pack Complet (300 €).'
+    );
+  });
+}
+
+function fakePack() {
+  load('Traitement de la commande…', 'Pack Complet · 300,00 € · NoxBank by Noé', 't', 2800, () => {
+    alert(
+      '😂  SÉRIEUSEMENT ???\n\n' +
+      'Mon frère t\'allais vraiment dépenser 300 boules\n' +
+      'pour des photos de pieds 💀💀💀\n\n' +
+      '— C\'était un troll, t\'es en sécurité frère 🫶'
+    );
+  });
+}
+
+/* ═══ iOS — empêche le zoom sur focus input ═══ */
+document.querySelectorAll('input').forEach(inp => {
+  inp.addEventListener('focus', () => {
+    document.querySelector('meta[name=viewport]').setAttribute(
+      'content',
+      'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
+    );
+  });
+  inp.addEventListener('blur', () => {
+    document.querySelector('meta[name=viewport]').setAttribute(
+      'content',
+      'width=device-width, initial-scale=1.0, viewport-fit=cover'
+    );
+  });
+});
+</script>
+</body>
+</html>
+
